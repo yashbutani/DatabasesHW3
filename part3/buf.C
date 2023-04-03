@@ -72,11 +72,58 @@ the hash table.
 */
 const Status BufMgr::allocBuf(int & frame) 
 {
+bool is_allocated = false;
+    int count = 0;
+    Status status;
 
-
-
-
-
+    if(bufTable[clockHand].valid == true)
+    {
+        if(bufTable[clockHand].refbit == true)
+        {
+            //clear ref bit
+            bufTable[clockHand].refbit = false;
+            advanceClock();
+        }
+        else
+        {
+            if(bufTable[clockHand].pinCnt == 0)
+            {
+                if(bufTable[clockHand].dirty == true)
+                {
+                    //flush page to disk
+                    status = bufTable[clockHand].file->writePage(bufTable[clockHand].pageNo,&bufPool[clockHand]);
+                    if(status != OK)
+                    {
+                        return UNIXERR;
+                    }
+                    bufStats.accesses++;
+                    status = hashTable->remove(bufTable[clockHand].file,bufTable[clockHand].pageNo);
+                    if(status != OK )
+                    {
+                        return status;
+                    }
+                    bufTable[clockHand].Clear();
+                    frame = clockHand;
+                    bufStats.diskwrites++;
+                    is_allocated= true;
+                }
+            }
+            else
+            {
+                advanceClock(); //page has been pinned so advance clock
+                count++;
+            }
+        }
+    }
+    else
+    {
+        //invoke set on frame
+        frame = clockHand;
+    }
+    if(is_allocated == false)
+    {
+       return BUFFEREXCEEDED;
+    }
     return OK;
 }
 
@@ -95,9 +142,39 @@ frames are pinned, HASHTBLERROR if a hash table error occurred.
 */
 const Status BufMgr::readPage(File* file, const int PageNo, Page*& page)
 {
+    int frameNo;
+    Status status = hashTable->lookup(file, PageNo, frameNo);
 
-
-
+    //case1: page is not in buffer pool
+    if (status == HASHNOTFOUND) {
+        status = allocBuf(frameNo);
+        if (status != OK)
+        {
+            return status;
+        }
+        status = file->readPage(PageNo, page); //check to see if explicit page set is needed
+        if (status != OK)
+        {
+            return status;
+        }
+        //May need to change to manual insertion, double check
+        status = hashTable->insert(file, PageNo, frameNo);
+        if (status != OK)
+        {
+            return status;
+        }
+        bufTable[frameNo].Set(file, PageNo);  //CHANGE?
+        page = &bufPool[frameNo];
+        return OK; //pointer to frame containing page via page parameter //EDITTTTTTTTT
+    }
+    //case2: page is in buffer pool
+    else {
+        bufTable[frameNo].refbit = true;
+        bufTable[frameNo].pinCnt++;
+        //Status output = &bufPool[frameNo];
+        page = &bufPool[frameNo];
+        return OK; //pointer to frame containing page via page parameter //EDITTTTTTTTT
+    }
 
     return OK;
 }
@@ -114,8 +191,8 @@ const Status BufMgr::unPinPage(File* file, const int PageNo,
     int frameNo;
     Status status = hashTable->lookup(file, PageNo, frameNo);
 
-    if (status == HASHNOTFOUND) {
-        return HASHNOTFOUND;
+    if (status != OK) {
+        return status;
     }
 
     if (bufTable[frameNo].pinCnt == 0) {
@@ -143,12 +220,26 @@ occurred.
 */
 const Status BufMgr::allocPage(File* file, int& pageNo, Page*& page) 
 {
+//possibly make frameID unsigned
+Page newPage;
+Status status = file->allocatePage(pageNo);
+if (status != OK) {
+    return status;
+}
+int frameNo;
+status = allocBuf(frameNo);
+if (status != OK) {
+    return status;
+}
+bufPool[frameNo] = newPage;
+bufStats.accesses++;
+page = &bufPool[frameNo];
 
-
-
-
-
-
+status = hashTable->insert(file, pageNo, frameNo);
+if (status != OK) {
+    return status;
+}
+bufTable[frameNo].Set(file, pageNo);
     return OK;
 }
 
