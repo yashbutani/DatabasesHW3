@@ -75,7 +75,11 @@ const Status BufMgr::allocBuf(int & frame)
 bool is_allocated = false;
     int count = 0;
     Status status;
+    //printf("here");
 
+while(count < numBufs * 2)
+    {
+        //printf("Here");
     if(bufTable[clockHand].valid == true)
     {
         if(bufTable[clockHand].refbit == true)
@@ -83,6 +87,7 @@ bool is_allocated = false;
             //clear ref bit
             bufTable[clockHand].refbit = false;
             advanceClock();
+            count++;
         }
         else
         {
@@ -106,6 +111,12 @@ bool is_allocated = false;
                     frame = clockHand;
                     bufStats.diskwrites++;
                     is_allocated= true;
+                    break;
+                }
+                else {
+                    is_allocated = true;
+                    frame = clockHand;
+                    break;
                 }
             }
             else
@@ -118,7 +129,10 @@ bool is_allocated = false;
     else
     {
         //invoke set on frame
+        is_allocated = true;
         frame = clockHand;
+        break;
+    }
     }
     if(is_allocated == false)
     {
@@ -152,7 +166,7 @@ const Status BufMgr::readPage(File* file, const int PageNo, Page*& page)
         {
             return status;
         }
-        status = file->readPage(PageNo, page); //check to see if explicit page set is needed
+        status = file->readPage(PageNo, &bufPool[frameNo]); //check to see if explicit page set is needed
         if (status != OK)
         {
             return status;
@@ -171,7 +185,6 @@ const Status BufMgr::readPage(File* file, const int PageNo, Page*& page)
     else {
         bufTable[frameNo].refbit = true;
         bufTable[frameNo].pinCnt++;
-        //Status output = &bufPool[frameNo];
         page = &bufPool[frameNo];
         return OK; //pointer to frame containing page via page parameter //EDITTTTTTTTT
     }

@@ -234,6 +234,7 @@ int main()
 
     for (i = 1; i < num; i++) {
       CALL(bufMgr->readPage(file1, i, page));
+      //printf("test.1 Page %d %7.1f", i, (float)i);
       sprintf((char*)&cmp, "test.1 Page %d %7.1f", i, (float)i);
       ASSERT(memcmp(page, &cmp, strlen((char*)&cmp)) == 0);
       cout << (char*)page << endl;
