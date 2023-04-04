@@ -75,46 +75,46 @@ const Status BufMgr::allocBuf(int & frame)
 bool is_allocated = false;
     int count = 0;
     Status status;
+    //printf("here");
 
 while(count < numBufs * 2)
     {
-    BufDesc* desc = &bufTable[clockHand];
-
-    if(desc->valid == true)
+        //printf("Here");
+    if(bufTable[clockHand].valid == true)
     {
-        if(desc->refbit == true)
+        if(bufTable[clockHand].refbit == true)
         {
             //clear ref bit
-            desc->refbit = false;
+            bufTable[clockHand].refbit = false;
             advanceClock();
             count++;
         }
         else
         {
-            if(desc->pinCnt == 0)
+            if(bufTable[clockHand].pinCnt == 0)
             {
-                if(desc->dirty == true)
+                if(bufTable[clockHand].dirty == true)
                 {
                     //flush page to disk
-                    status = desc->file->writePage(desc->pageNo, &bufPool[clockHand]);
+                    status = bufTable[clockHand].file->writePage(bufTable[clockHand].pageNo,&bufPool[clockHand]);
                     if(status != OK)
                     {
                         return UNIXERR;
                     }
                     bufStats.accesses++;
-                    status = hashTable->remove(desc->file, desc->pageNo);
+                    status = hashTable->remove(bufTable[clockHand].file,bufTable[clockHand].pageNo);
                     if(status != OK )
                     {
                         return status;
                     }
-                    desc->Clear();
+                    bufTable[clockHand].Clear();
                     frame = clockHand;
                     bufStats.diskwrites++;
-                    is_allocated = true;
+                    is_allocated= true;
                     break;
                 }
                 else {
-                    status = hashTable->remove(desc->file, desc->pageNo);
+                    status = hashTable->remove(bufTable[clockHand].file,bufTable[clockHand].pageNo);
                     if(status != OK )
                     {
                         return status;
@@ -188,16 +188,10 @@ const Status BufMgr::readPage(File* file, const int PageNo, Page*& page)
     }
     //case2: page is in buffer pool
     else {
-        // bufTable[frameNo].refbit = true;
-        // bufTable[frameNo].pinCnt++;
-        // page = &bufPool[frameNo];
-        // return OK; //pointer to frame containing page via page parameter //EDITTTTTTTTT
-
-        BufDesc* desc = &bufTable[frameNo];
-        desc->refbit = true;
-        desc->pinCnt++;
+        bufTable[frameNo].refbit = true;
+        bufTable[frameNo].pinCnt++;
         page = &bufPool[frameNo];
-        return OK;
+        return OK; //pointer to frame containing page via page parameter //EDITTTTTTTTT
     }
 
     return OK;
@@ -337,5 +331,4 @@ void BufMgr::printSelf(void)
         cout << endl;
     };
 }
-
 
